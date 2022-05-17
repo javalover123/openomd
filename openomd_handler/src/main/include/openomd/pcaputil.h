@@ -102,6 +102,7 @@ inline void PcapUtil<_CB, _PBPolicy>::start()
             timeMultiplier(1);
         }
     }
+    fclose(pcapFile);
 
     char errMsg[PCAP_ERRBUF_SIZE];
     _pcapt = pcap_open_offline(_pcapFile.c_str(), errMsg);
@@ -123,7 +124,11 @@ inline void PcapUtil<_CB, _PBPolicy>::run()
         wait(pkthdr->ts);
         const uint8_t* pos = pktData + (_sll ? 2:0);
         auto* ethernetHdr = reinterpret_cast<EthernetHdr const*>(pos);
-        auto EthernetHdrSize = sizeof(EthernetHdr) + (ntohs(ethernetHdr->ether_type) == ETHERTYPE_VLAN ? 4 : 0);
+        auto EthernetHdrSize = sizeof(EthernetHdr);
+        if (ntohs(ethernetHdr->ether_type) == ETHERTYPE_VLAN)
+        {
+            EthernetHdrSize += 4;
+        }
         pos += EthernetHdrSize;
         auto *ipPacket = reinterpret_cast<IpHdr const*>(pos);
         switch (ipPacket->ip_p)
@@ -139,6 +144,7 @@ inline void PcapUtil<_CB, _PBPolicy>::run()
             uint32_t byteRecvd = pkthdr->len - static_cast<uint32_t>(sizeof(UdpHdr) + EthernetHdrSize);
             _callback.onReceive(pkthdr->ts, byteRecvd, const_cast<uint8_t*>(&udpPacket->_payload[0]), ETHERNET_MAX_PAYLOAD, 
                 udpPacket->_hdr.ip_dst.s_addr, ntohs(udpPacket->_hdr.uh_dport));
+            break;
         }
         }
     }
